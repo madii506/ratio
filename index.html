@@ -124,7 +124,6 @@ const COINS=[];
 
 <div id="door" class="z">
   <svg id="seal" viewBox="0 0 400 400" fill="none" stroke="#e8e6e0" stroke-linecap="round"></svg>
-  <div class="line serif">ratio the tweet</div>
   <div class="hint">enter</div>
 </div>
 
@@ -230,7 +229,7 @@ function board(){const rows=[];if(CONFIG.tweet)rows.push({tweet:CONFIG.tweet,nam
 board();
 /* ---------- launch form ---------- */
 $('#fpays').innerHTML=PAYS.map(p=>`<option value="${p}">$${p}</option>`).join('');
-let T=null;const parse=u=>{const m=String(u||'').match(/(?:x|twitter)\.com\/([A-Za-z0-9_]{1,15})\/status\/(\d{5,25})/);return m?{handle:m[1],id:m[2],url:`https://x.com/${m[1]}/status/${m[2]}`}:null};
+let T=null;const parse=u=>{const m=String(u||'').match(/(?:x|twitter)\.com\/([A-Za-z0-9_]{1,15})\/status\/(\d{1,25})/);return m?{handle:m[1],id:m[2],url:`https://x.com/${m[1]}/status/${m[2]}`}:null};
 let tmr=null;
 $('#furl').addEventListener('input',()=>{clearTimeout(tmr);const p=parse($('#furl').value);if(!p){T=null;$('#uhint').className='hint'+($('#furl').value?' err':'');$('#uhint').textContent=$('#furl').value?'that is not a tweet url':'any tweet. the author does not have to agree.';render();return}
   $('#uhint').className='hint';$('#uhint').textContent='reading the tweet…';T={...p,name:p.handle,text:'…',views:null};render();
