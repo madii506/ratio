@@ -2,7 +2,7 @@
 // Sources: X's public oEmbed endpoint (author + html) and the syndication endpoint (text + counts). No keys. Cached 5 min.
 const UA = { 'User-Agent': 'Mozilla/5.0 (ratio; +https://ratio.vercel.app)' };
 function parse(url) {
-  const m = String(url || '').match(/(?:x|twitter)\.com\/([A-Za-z0-9_]{1,15})\/status\/(\d{5,25})/);
+  const m = String(url || '').match(/(?:x|twitter)\.com\/([A-Za-z0-9_]{1,15})\/status\/(\d{1,25})/);
   return m ? { handle: m[1], id: m[2] } : null;
 }
 function strip(html) {
