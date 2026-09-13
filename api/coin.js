@@ -18,6 +18,15 @@ module.exports = async (req, res) => {
     if (out.mcap == null && out.price != null && out.supply != null) out.mcap = out.price * out.supply;
     out.src.push('blockscout');
   } catch (e) { out.err = String(e.message); }
+  try {
+    const r = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${ca}`, { headers: UA });
+    if (r.ok) {
+      const j = await r.json(); const pairs = (j.pairs || []).filter(x => x.baseToken && String(x.baseToken.address).toLowerCase() === ca.toLowerCase() && x.marketCap);
+      pairs.sort((a, b) => ((b.liquidity && b.liquidity.usd) || 0) - ((a.liquidity && a.liquidity.usd) || 0) || (b.marketCap - a.marketCap));
+      const best = pairs[0];
+      if (best) { out.price = Number(best.priceUsd); out.mcap = Number(best.marketCap); out.liquidity = best.liquidity && best.liquidity.usd != null ? Number(best.liquidity.usd) : null; out.volume24h = best.volume && best.volume.h24 != null ? Number(best.volume.h24) : null; out.pair = best.pairAddress; out.chart = best.url || null; out.quote = best.quoteToken && best.quoteToken.symbol; out.src.push('dexscreener'); }
+    }
+  } catch (e) { out.err_dex = String(e.message); }
   res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate=300');
   res.status(200).json(out);
 };
