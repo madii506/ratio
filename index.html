@@ -114,9 +114,9 @@ h2{font-family:'Corm',Georgia,serif;font-style:italic;font-weight:500;font-size:
 <body>
 <script>
 // Fill when launched. Rows and links render only when set.
-const CONFIG={ca:'',x:'',pool:'',chart:'',launchpad:'https://ponsvault.com/launch',tweet:'',vault:''};
-// Tweets that became coins. {tweet, name, handle, text, pays, ca, link, views, mcap}
-const COINS=[];
+const CONFIG={ca:'',x:'https://x.com/useratioRH',pool:'',chart:'',launchpad:'https://ponsvault.com/launch',tweet:'',vault:''};
+// Tweets that became coins live in coins.json (same folder). Each: {tweet, pays, ca}. Everything else is read live from X and the chain.
+let COINS=[];
 </script>
 <div id="cloud"></div>
 <svg id="grain" width="100%" height="100%"><filter id="n"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" stitchTiles="stitch"/><feColorMatrix values="0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .13 0"/></filter><rect width="100%" height="100%" filter="url(#n)"/></svg>
@@ -167,6 +167,14 @@ const COINS=[];
       <div class="btns"><button type="button" class="btn w" id="copy">copy the listing</button><a class="btn" id="openpons" href="https://ponsvault.com/launch" target="_blank" rel="noopener">open pons</a><a class="btn" id="postit" href="#" target="_blank" rel="noopener">post it</a></div>
       <div class="ok" id="lok"></div>
     </form>
+    <form class="form r" id="rform" autocomplete="off" style="margin-top:70px">
+      <div class="eyebrow">already launched it?</div>
+      <div class="f"><label>the coin's address</label><input id="rca" maxlength="42" placeholder="0x…"><div class="hint" id="rcahint">the board reads it from the chain.</div></div>
+      <div class="f"><label>its tweet</label><input id="rtw" placeholder="https://x.com/someone/status/…"></div>
+      <div class="btns"><button type="button" class="btn w" id="register">check the coin</button><a class="btn" id="announce" href="#" target="_blank" rel="noopener" style="display:none">announce it</a></div>
+      <div class="ok" id="rok"></div>
+      <div id="rprev"></div>
+    </form>
   </div></section>
 
   <section id="claim"><div class="wrap">
@@ -179,6 +187,9 @@ const COINS=[];
       <div class="code"><div class="k">your code</div><div class="c serif" id="ccode">— — — —</div></div>
       <div class="btns"><a class="btn w" id="reply" href="#" target="_blank" rel="noopener">reply with the code</a><button type="button" class="btn" id="ccopy">copy the code</button></div>
       <div class="ok" id="cok"></div>
+      <div class="f" style="margin-top:34px"><label>then paste the link to your reply</label><input id="rurl" placeholder="https://x.com/you/status/…"><div class="hint" id="rhint">the board reads the reply from x and checks the code and the author.</div></div>
+      <div class="btns"><button type="button" class="btn w" id="verify">verify the claim</button></div>
+      <div class="ok" id="vok"></div>
     </form>
   </div></section>
 
@@ -221,11 +232,19 @@ $('#snd').onclick=()=>{SND=!SND;$('#snd').textContent='snd '+(SND?'on':'off');tr
 document.addEventListener('click',e=>{if(e.target.closest('.btn,nav a'))beep(880,.05,.015)});
 /* ---------- board ---------- */
 function fmt(n){return n==null?'—':n>=1e6?(n/1e6).toFixed(1)+'m':n>=1e3?(n/1e3).toFixed(1)+'k':String(n)}
-function ratio(c){if(!c.mcap||!c.views)return {t:'—',p:0};const cents=c.mcap/c.views*100;return {t:cents>=100?'$'+(cents/100).toFixed(2)+' a view':cents.toFixed(2)+'¢ a view',p:Math.min(100,cents)}}
-function board(){const rows=[];if(CONFIG.tweet)rows.push({tweet:CONFIG.tweet,name:'ratio',handle:(CONFIG.x||'').split('/').pop()||'ratio',text:'ratio the tweet.',pays:'SPY',ca:CONFIG.ca,link:CONFIG.pool||(CONFIG.ca?'https://ponsfamily.com/launchpad/'+CONFIG.ca:''),first:true});
-  COINS.forEach(c=>rows.push(c));
-  $('#boardlist').innerHTML=rows.length?rows.map(c=>{const r=ratio(c);return `<div class="tw"><div><div class="who"><b>${c.name}</b><span>@${c.handle}</span></div><div class="txt">${c.text}</div><div class="meta"><span>pays in $${c.pays}</span><span>views ${fmt(c.views)}</span><a href="${c.tweet}" target="_blank" rel="noopener">the tweet ↗</a>${c.ca?`<a href="${c.link}" target="_blank" rel="noopener">trade ↗</a>`:'<span>ca coming soon</span>'}</div></div><div class="ratio"><div class="k">ratio</div><div class="v serif">${r.t}</div><div class="bar"><i style="width:${r.p}%"></i></div></div></div>`}).join(''):`<div class="empty">no tweet has been ratioed yet. the first one will be ours.</div>`;
-  $('#count').textContent=`tweets ${rows.length} · coins ${rows.filter(c=>c.ca).length} · claimed 0`}
+function money(n){return n==null?'—':n>=1e6?'$'+(n/1e6).toFixed(2)+'m':n>=1e3?'$'+(n/1e3).toFixed(1)+'k':'$'+n.toFixed(0)}
+function ratio(c){const den=c.views||c.likes;const unit=c.views?'a view':'a like';if(!c.mcap||!den)return {t:'—',p:0};const cents=c.mcap/den*100;return {t:(cents>=100?'$'+(cents/100).toFixed(2):cents.toFixed(2)+'¢')+' '+unit,p:Math.min(100,cents)}}
+const esc=s=>String(s||'').replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
+function rowHTML(c){const r=ratio(c);const link=c.link||(c.ca?'https://ponsfamily.com/launchpad/'+c.ca:'');return `<div class="tw" data-ca="${c.ca||''}"><div><div class="who"><b>${esc(c.name||c.handle||'…')}</b><span>@${esc(c.handle||'…')}</span></div><div class="txt">${esc(c.text||'…')}</div><div class="meta"><span>pays in $${esc(c.pays)}</span><span>${c.views?'views '+fmt(c.views):'likes '+fmt(c.likes)}</span><span>mcap ${money(c.mcap)}</span><span>holders ${fmt(c.holders)}</span><a href="${esc(c.tweet)}" target="_blank" rel="noopener">the tweet ↗</a>${c.ca?`<a href="${link}" target="_blank" rel="noopener">trade ↗</a>`:'<span>ca coming soon</span>'}${c.claimed?'<span>claimed</span>':''}</div></div><div class="ratio"><div class="k">ratio</div><div class="v serif">${r.t}</div><div class="bar"><i style="width:${r.p}%"></i></div></div></div>`}
+let ROWS=[];
+function paint(){$('#boardlist').innerHTML=ROWS.length?ROWS.map(rowHTML).join(''):`<div class="empty">no tweet has been ratioed yet. the first one will be ours.</div>`;
+  $('#count').textContent=`tweets ${ROWS.length} · coins ${ROWS.filter(c=>c.ca).length} · claimed ${ROWS.filter(c=>c.claimed).length}`}
+async function enrich(c){const p=parse(c.tweet);if(p){c.handle=c.handle||p.handle;try{const j=await (await fetch('/api/tweet?url='+encodeURIComponent(p.url))).json();if(j&&!j.error){c.name=j.name||c.name;c.handle=j.handle||c.handle;c.text=j.text||c.text;c.views=j.views||c.views;c.likes=j.likes||c.likes}}catch(e){}}
+  if(c.ca){try{const j=await (await fetch('/api/coin?ca='+c.ca)).json();if(j&&!j.error){c.holders=j.holders;c.mcap=j.mcap;c.symbol=j.symbol}}catch(e){}}
+  paint()}
+async function board(){try{const r=await fetch('coins.json?t='+Date.now());if(r.ok){const j=await r.json();if(Array.isArray(j))COINS=j}}catch(e){}
+  ROWS=[];if(CONFIG.tweet)ROWS.push({tweet:CONFIG.tweet,pays:'SPY',ca:CONFIG.ca,link:CONFIG.pool,first:true,text:'ratio the tweet.'});
+  COINS.forEach(c=>ROWS.push(Object.assign({},c)));paint();for(const c of ROWS)await enrich(c);if(ROWS.length)log(`the board read ${ROWS.length} tweet${ROWS.length>1?'s':''} from x and the chain`)}
 board();
 /* ---------- launch form ---------- */
 $('#fpays').innerHTML=PAYS.map(p=>`<option value="${p}">$${p}</option>`).join('');
@@ -249,6 +268,30 @@ function claim(){const p=parse($('#curl').value),w=$('#cwallet').value.trim();co
   const code='RATIO·'+hash(p.id+'|'+w.toLowerCase());$('#ccode').textContent=code;$('#reply').href=`https://x.com/intent/tweet?in_reply_to=${p.id}&text=${encodeURIComponent(code+' '+w)}`}
 $('#curl').addEventListener('input',claim);$('#cwallet').addEventListener('input',claim);claim();
 $('#ccopy').onclick=async()=>{const c=$('#ccode').textContent;if(!c.startsWith('RATIO'))return;try{await navigator.clipboard.writeText(c+' '+$('#cwallet').value.trim());$('#cok').textContent='copied · reply to your tweet with it';log('a claim code was cut')}catch(e){}setTimeout(()=>$('#cok').textContent='',4000)};
+/* ---------- verify the claim by reading the reply ---------- */
+$('#verify').onclick=async()=>{const p=parse($('#curl').value),w=$('#cwallet').value.trim(),rp=parse($('#rurl').value);const code=$('#ccode').textContent;
+  if(!p||!/^0x[0-9a-fA-F]{40}$/.test(w)){$('#vok').textContent='fill the tweet and the wallet first';return}
+  if(!rp){$('#vok').textContent='paste the link to your reply';return}
+  $('#vok').textContent='reading the reply from x…';
+  try{const j=await (await fetch('/api/tweet?url='+encodeURIComponent(rp.url))).json();
+    const sameAuthor=(j.handle||rp.handle).toLowerCase()===p.handle.toLowerCase();const hasCode=(j.text||'').toUpperCase().includes(code.toUpperCase().replace('RATIO·','RATIO'))||(j.text||'').toUpperCase().includes(code.toUpperCase());const hasWallet=(j.text||'').toLowerCase().includes(w.toLowerCase());
+    if(!j.text){$('#vok').textContent='x hid that reply. send the link to @useratioRH and it is checked by hand.';return}
+    if(!sameAuthor){$('#vok').textContent=`that reply is by @${j.handle||rp.handle}, not @${p.handle}. only the author can claim.`;log('a claim failed · wrong author');return}
+    if(!hasCode||!hasWallet){$('#vok').textContent='the reply does not carry the code and the wallet. reply again with both.';log('a claim failed · code missing');return}
+    $('#vok').textContent=`verified · @${p.handle} claims ${w.slice(0,6)}…${w.slice(-4)}. the vault pays this wallet. send the reply link to @useratioRH to close it.`;log(`claim verified · @${p.handle}`);beep(660,.3,.03)}
+  catch(e){$('#vok').textContent='x did not answer. try again in a minute.'}};
+/* ---------- register a launched coin ---------- */
+$('#rca').addEventListener('input',()=>{const ok=/^0x[0-9a-fA-F]{40}$/.test($('#rca').value.trim())||!$('#rca').value;$('#rcahint').className='hint'+(ok?'':' err');$('#rcahint').textContent=ok?'the board reads it from the chain.':'that is not a 0x address'});
+$('#register').onclick=async()=>{const ca=$('#rca').value.trim(),p=parse($('#rtw').value);if(!/^0x[0-9a-fA-F]{40}$/.test(ca)||!p){$('#rok').textContent='an address and a tweet, please';return}
+  $('#rok').textContent='reading the chain and the tweet…';$('#rprev').innerHTML='';
+  try{const [cj,tj]=await Promise.all([(await fetch('/api/coin?ca='+ca)).json(),(await fetch('/api/tweet?url='+encodeURIComponent(p.url))).json()]);
+    if(!cj||!cj.name){$('#rok').textContent='the chain does not know that address yet. give it a minute after launch.';return}
+    const c={tweet:p.url,pays:$('#fpays').value,ca,name:tj.name||p.handle,handle:tj.handle||p.handle,text:tj.text||'',views:tj.views,likes:tj.likes,holders:cj.holders,mcap:cj.mcap,symbol:cj.symbol};
+    $('#rprev').innerHTML='<div class="board" style="margin-top:26px">'+rowHTML(c)+'</div>';
+    $('#rok').textContent=`${cj.name} (${cj.symbol||'?'}) is on the chain${cj.holders!=null?' · '+cj.holders+' holders':''}. it goes on the board with the next registry update — send the address to @useratioRH.`;
+    const a=$('#announce');a.style.display='';a.href='https://x.com/intent/tweet?text='+encodeURIComponent(`$${cj.symbol||'COIN'} is a tweet now.\n@${c.handle} your vault is open. paid in $${c.pays}.\nCA: ${ca}\nratio the tweet ${p.url}`);
+    log(`a coin was registered · ${cj.symbol||ca.slice(0,8)}`)}
+  catch(e){$('#rok').textContent='could not read it. try again in a minute.'}};
 /* ---------- config ---------- */
 if(CONFIG.x){$('#navx').href=CONFIG.x;$('#navx').style.display=''}
 if(CONFIG.ca){$('#carow').style.display='';$('#catext').textContent=CONFIG.ca;$('#carow').onclick=()=>{navigator.clipboard.writeText(CONFIG.ca);$('#cacp').textContent='copied';setTimeout(()=>$('#cacp').textContent='copy',1500)}}
